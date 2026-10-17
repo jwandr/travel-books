@@ -153,10 +153,10 @@ footer{text-align:center;color:var(--muted);font:12px system-ui,sans-serif;paddi
   5. Host this file (e.g. Supabase Storage, Netlify, GitHub Pages).
   Never put a service_role/secret key in browser code.
 */
-const SUPABASE_URL = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
-const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY_HERE";
+const SUPABASE_URL = "https://xvgzbvnaxcdcinoirzwh.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2Z3pidm5heGNkY2lub2lyendoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjQ2MTgsImV4cCI6MjA5Mjg0MDYxOH0.9-IESH8qeR_bTl85fqTxeo8SPs0BZs5etC3pCXzD_FA";
 // Use the UUID of your existing account from Supabase Dashboard > Authentication > Users.
-const ADMIN_USER_ID = "PASTE_YOUR_AUTH_USER_UUID_HERE";
+const ADMIN_USER_ID = "20a5a6f8-d604-4a11-989b-d0497c04014d";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentSession = null, currentUser = null;
 const TABLE = "travel_books";
