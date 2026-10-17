@@ -72,6 +72,7 @@ footer{text-align:center;color:var(--muted);font:12px system-ui,sans-serif;paddi
     <button class="btn" id="addBook" hidden>＋ Add a book</button>
     <button class="btn secondary" id="exportBtn">↓ Export JSON</button>
     <button class="btn secondary" id="importBtn" hidden>↑ Import JSON</button>
+    <button class="btn secondary" id="coversBtn" hidden>▧ Find missing covers</button>
     <span class="auth-status" id="authStatus">Public catalogue</span>
     <button class="btn secondary" id="signInBtn">Sign in</button>
     <button class="btn secondary" id="signOutBtn" hidden>Sign out</button>
@@ -193,7 +194,7 @@ function normalizeBook(b){
 function isAdmin(){return !!currentUser && ADMIN_USER_ID && !ADMIN_USER_ID.startsWith("PASTE_") && currentUser.id===ADMIN_USER_ID;}
 function updateAuthUI(){
   const admin=isAdmin();
-  $("addBook").hidden=!admin; $("importBtn").hidden=!admin;
+  $("addBook").hidden=!admin; $("importBtn").hidden=!admin; $("coversBtn").hidden=!admin;
   $("signInBtn").hidden=!!currentUser; $("signOutBtn").hidden=!currentUser;
   $("authStatus").textContent=admin?`Signed in as ${currentUser.email}`:(currentUser?"Signed in · read-only account":"Public catalogue · read only");
   if(currentUser && !admin) console.warn("Signed in account does not match ADMIN_USER_ID; write controls remain disabled.");
@@ -208,6 +209,38 @@ async function api(path, options={}){
   if(res.status===204) return [];
   const text=await res.text(); return text ? JSON.parse(text) : [];
 }
+// Search public book catalogues for a close title/author match. Never overwrite an existing URL.
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+function titleKey(value){return norm(value).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," ");}
+function authorLooksRight(found, wanted){
+  const a=titleKey(found), b=titleKey(wanted); if(!a||!b)return false;
+  const last=b.split(" ").filter(Boolean).slice(-1)[0];
+  return a===b || a.includes(b) || b.includes(a) || (last && a.split(" ").includes(last));
+}
+function titleLooksRight(found, wanted){
+  const a=titleKey(found), b=titleKey(wanted); if(!a||!b)return false;
+  return a===b || a.startsWith(b+" ") || b.startsWith(a+" ") || (a.length>12 && b.length>12 && (a.includes(b)||b.includes(a)));
+}
+async function findCoverUrl(book){
+  if(!book?.title || !book?.author)return "";
+  try{
+    const params=new URLSearchParams({title:book.title,author:book.author,fields:"title,author_name,cover_i",limit:"5"});
+    const res=await fetch("https://openlibrary.org/search.json?"+params.toString(),{headers:{Accept:"application/json"}});
+    if(res.ok){const data=await res.json();const docs=(data.docs||[]).filter(d=>d.cover_i&&titleLooksRight(d.title,book.title)&&(d.author_name||[]).some(a=>authorLooksRight(a,book.author)));
+      if(docs.length)return `https://covers.openlibrary.org/b/id/${docs[0].cover_i}-M.jpg?default=false`;
+    }
+  }catch(err){console.warn("Open Library cover lookup failed",err);}
+  try{
+    const q=encodeURIComponent(`intitle:${book.title} inauthor:${book.author}`);
+    const res=await fetch(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=5&printType=books`);
+    if(res.ok){const data=await res.json();const items=(data.items||[]).filter(item=>{const v=item.volumeInfo||{};return v.imageLinks&&titleLooksRight(v.title,book.title)&&(v.authors||[]).some(a=>authorLooksRight(a,book.author));});
+      if(items.length){const links=items[0].volumeInfo.imageLinks;const url=links.thumbnail||links.smallThumbnail;if(url)return url.replace(/^http:/,"https:").replace(/&amp;/g,"&");}
+    }
+  }catch(err){console.warn("Google Books cover lookup failed",err);}
+  return "";
+}
+async function withCoverIfMissing(book){if(book.cover_url)return book;const cover_url=await findCoverUrl(book);return cover_url?{...book,cover_url}:book;}
+
 async function loadBooks(){
   if(!isConfigured()){books=sampleBooks.map(normalizeBook);$("connection").textContent="Sample catalogue · connect Supabase to publish";render();return}
   try{
@@ -276,14 +309,15 @@ function openEdit(id){
 }
 async function saveBook(b){
   if(isConfigured() && !isAdmin()) throw new Error("Please sign in with the authorised Travel Bookcase account before editing.");
-  if(!isConfigured()){if(editingId)books=books.map(x=>x.id===editingId?b:x);else books.push(b);return}
+  if(!isConfigured()){const idx=books.findIndex(x=>x.id===b.id);if(idx>=0)books[idx]=b;else books.push(b);return}
   const {platforms,...row}=b;
   const payload={...row,countries:b.countries,regions:b.regions,genres:b.genres};
   let saved;
-  if(editingId){
-    const result=await api(`${TABLE}?id=eq.${encodeURIComponent(editingId)}`,{method:"PATCH",body:JSON.stringify(payload)});
+  const exists=books.some(x=>x.id===b.id);
+  if(exists){
+    const result=await api(`${TABLE}?id=eq.${encodeURIComponent(b.id)}`,{method:"PATCH",body:JSON.stringify(payload)});
     saved=result[0]||payload;
-    await api(`${PLATFORM_TABLE}?book_id=eq.${encodeURIComponent(editingId)}`,{method:"DELETE",headers:{Prefer:"return=minimal"}});
+    await api(`${PLATFORM_TABLE}?book_id=eq.${encodeURIComponent(b.id)}`,{method:"DELETE",headers:{Prefer:"return=minimal"}});
   }else{
     const result=await api(TABLE,{method:"POST",body:JSON.stringify(payload)});saved=result[0]||payload;
   }
@@ -296,7 +330,9 @@ $("bookForm").addEventListener("submit",async e=>{
   e.preventDefault();$("formError").textContent="";
   let platforms=[];try{platforms=$("fPlatforms").value.trim()?JSON.parse($("fPlatforms").value):[];if(!Array.isArray(platforms))throw new Error("Platforms must be a JSON array.");}catch(err){$("formError").textContent="Platforms JSON: "+err.message;return}
   const b=normalizeBook({id:editingId||uuid(),title:$("fTitle").value,author:$("fAuthor").value,countries:splitList($("fCountries").value),regions:splitList($("fRegions").value),genres:splitList($("fGenres").value),reading_status:$("fStatus").value,format_preference:$("fFormat").value,cover_url:$("fCover").value,description:$("fDescription").value,why_read:$("fWhy").value,platforms,created_at:(books.find(x=>x.id===editingId)||{}).created_at});
-  try{await saveBook(b);if(!isConfigured()){}else await loadBooks();if(!isConfigured())render();$("editDialog").close();if(selectedId){$("detailDialog").close();selectedId=null}}catch(err){console.error(err);$("formError").textContent="Save failed: "+err.message}
+  try{
+    if(!b.cover_url){$("formError").textContent="Looking for cover art…";const covered=await withCoverIfMissing(b);b.cover_url=covered.cover_url||"";$("fCover").value=b.cover_url;}
+    await saveBook(b);if(!isConfigured()){}else await loadBooks();if(!isConfigured())render();$("editDialog").close();if(selectedId){$("detailDialog").close();selectedId=null}}catch(err){console.error(err);$("formError").textContent="Save failed: "+err.message}
 });
 $("addBook").addEventListener("click",()=>{if(isAdmin())openEdit();else showSignIn()});
 $("editBook").addEventListener("click",()=>{const id=selectedId;$("detailDialog").close();openEdit(id)});
@@ -338,6 +374,8 @@ $("confirmImport").addEventListener("click",async()=>{
         for(const k of ["countries","regions","genres"])if(!incoming[k]?.length&&match[k]?.length)finalBook[k]=match[k];
         if(!incoming.platforms?.length&&match.platforms?.length)finalBook.platforms=match.platforms;
       }
+      if(!finalBook.cover_url && match?.cover_url)finalBook.cover_url=match.cover_url;
+      if(!finalBook.cover_url){finalBook.cover_url=(await withCoverIfMissing(finalBook)).cover_url||"";await sleep(350);}
       await saveBook(finalBook);if(match)updated++;else added++;
       // Keep local list fresh for matching subsequent rows in the same import.
       const idx=books.findIndex(x=>x.id===finalBook.id);if(idx>=0)books[idx]=finalBook;else books.push(finalBook);
@@ -346,6 +384,27 @@ $("confirmImport").addEventListener("click",async()=>{
     $("importDialog").close();alert(`Import complete: ${added} added, ${updated} updated, ${skipped} skipped.`);
   }catch(err){console.error(err);alert("Import stopped: "+err.message+"\nSome earlier records may already have been saved. Export a backup before retrying.")}
 });
+// Backfill covers for books already in the database. Run manually and only for missing covers.
+$("coversBtn").addEventListener("click",async()=>{
+  if(!isAdmin()){showSignIn();return;}
+  const missing=books.filter(b=>!b.cover_url);
+  if(!missing.length){alert("Every book already has a cover URL.");return;}
+  if(!confirm(`Look up cover art for ${missing.length} books that are missing it? This may take a few minutes.`))return;
+  const btn=$("coversBtn"),oldText=btn.textContent;let found=0,notFound=0,failed=0;btn.disabled=true;
+  try{
+    for(let i=0;i<missing.length;i++){
+      const b=missing[i];btn.textContent=`Finding covers ${i+1}/${missing.length}…`;$("connection").textContent=`Looking up cover art for ${b.title}`;
+      try{
+        const url=await findCoverUrl(b);
+        if(url){await api(`${TABLE}?id=eq.${encodeURIComponent(b.id)}`,{method:"PATCH",body:JSON.stringify({cover_url:url})});b.cover_url=url;found++;}
+        else notFound++;
+      }catch(err){console.warn(`Could not update cover for ${b.title}`,err);failed++;}
+      render();await sleep(750);
+    }
+    $("connection").textContent="Connected to Supabase";alert(`Cover lookup complete.\n\nFound: ${found}\nNo confident match: ${notFound}\nErrors: ${failed}\n\nBooks without a match will keep their placeholder covers.`);
+  }finally{btn.disabled=false;btn.textContent=oldText;render();}
+});
+
 function showSignIn(){
   $("signInMessage").textContent="";
   if(!$("signInDialog").open) $("signInDialog").showModal();
