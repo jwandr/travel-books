@@ -17,6 +17,7 @@ header p{margin:0;color:#e3e9df;max-width:660px}
 main{max-width:1400px;margin:auto;padding:24px clamp(14px,3vw,38px) 60px}
 .toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
 .toolbar input[type=search]{flex:1;min-width:210px}
+.auth-status{font:12px system-ui,sans-serif;color:var(--muted);align-self:center}
 input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--ink)}
 textarea{width:100%;min-height:84px;resize:vertical}
 .btn{border:1px solid var(--green);border-radius:8px;padding:10px 14px;background:var(--green);color:white;font:600 13px system-ui,sans-serif}
@@ -68,9 +69,12 @@ footer{text-align:center;color:var(--muted);font:12px system-ui,sans-serif;paddi
 <main>
   <div class="toolbar">
     <input id="search" type="search" placeholder="Search titles, authors, places…" aria-label="Search catalogue">
-    <button class="btn" id="addBook">＋ Add a book</button>
+    <button class="btn" id="addBook" hidden>＋ Add a book</button>
     <button class="btn secondary" id="exportBtn">↓ Export JSON</button>
-    <button class="btn secondary" id="importBtn">↑ Import JSON</button>
+    <button class="btn secondary" id="importBtn" hidden>↑ Import JSON</button>
+    <span class="auth-status" id="authStatus">Public catalogue</span>
+    <button class="btn secondary" id="signInBtn">Sign in</button>
+    <button class="btn secondary" id="signOutBtn" hidden>Sign out</button>
     <input id="importFile" type="file" accept=".json,application/json" hidden>
   </div>
   <div class="filters">
@@ -127,16 +131,34 @@ footer{text-align:center;color:var(--muted);font:12px system-ui,sans-serif;paddi
   <div class="modal-actions"><button class="btn secondary" data-close="importDialog">Cancel</button><button class="btn" id="confirmImport">Import books</button></div>
 </dialog>
 
+<dialog id="signInDialog">
+  <div class="modal-head"><div><h2>Sign in to The Travel Bookcase</h2><p>We’ll email you a secure magic link. No password needed.</p></div><button class="close" data-close="signInDialog" aria-label="Close">×</button></div>
+  <form id="signInForm">
+    <div class="modal-body">
+      <div class="field"><label for="signInEmail">Email address</label><input id="signInEmail" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+      <p id="signInMessage" role="status"></p>
+    </div>
+    <div class="modal-actions"><button class="btn secondary" type="button" data-close="signInDialog">Cancel</button><button class="btn" id="sendMagicLink" type="submit">Send magic link</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /*
   SETUP:
   1. Run supabase_setup.sql in your Supabase SQL Editor.
   2. Paste your Project URL and anon/publishable key below.
-  3. Host this file (e.g. Supabase Storage, Netlify, GitHub Pages).
+  3. Set ADMIN_USER_ID to your existing Supabase Auth user UUID below.
+  4. Add this site URL to Supabase Auth > URL Configuration > Redirect URLs.
+  5. Host this file (e.g. Supabase Storage, Netlify, GitHub Pages).
   Never put a service_role/secret key in browser code.
 */
-const SUPABASE_URL = "https://xvgzbvnaxcdcinoirzwh.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh2Z3pidm5heGNkY2lub2lyendoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcyNjQ2MTgsImV4cCI6MjA5Mjg0MDYxOH0.9-IESH8qeR_bTl85fqTxeo8SPs0BZs5etC3pCXzD_FA";
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY_HERE";
+// Use the UUID of your existing account from Supabase Dashboard > Authentication > Users.
+const ADMIN_USER_ID = "PASTE_YOUR_AUTH_USER_UUID_HERE";
+const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let currentSession = null, currentUser = null;
 const TABLE = "travel_books";
 const PLATFORM_TABLE = "travel_book_platforms";
 
@@ -168,9 +190,18 @@ function normalizeBook(b){
     created_at:b.created_at||new Date().toISOString()
   };
 }
+function isAdmin(){return !!currentUser && ADMIN_USER_ID && !ADMIN_USER_ID.startsWith("PASTE_") && currentUser.id===ADMIN_USER_ID;}
+function updateAuthUI(){
+  const admin=isAdmin();
+  $("addBook").hidden=!admin; $("importBtn").hidden=!admin;
+  $("signInBtn").hidden=!!currentUser; $("signOutBtn").hidden=!currentUser;
+  $("authStatus").textContent=admin?`Signed in as ${currentUser.email}`:(currentUser?"Signed in · read-only account":"Public catalogue · read only");
+  if(currentUser && !admin) console.warn("Signed in account does not match ADMIN_USER_ID; write controls remain disabled.");
+}
 async function api(path, options={}){
+  const token=currentSession?.access_token || SUPABASE_ANON_KEY;
   const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, { ...options, headers:{
-    apikey:SUPABASE_ANON_KEY, Authorization:"Bearer "+SUPABASE_ANON_KEY,
+    apikey:SUPABASE_ANON_KEY, Authorization:"Bearer "+token,
     "Content-Type":"application/json", Prefer:"return=representation", ...(options.headers||{})
   }});
   if(!res.ok) throw new Error(await res.text());
@@ -228,7 +259,7 @@ function bookCard(b){
 }
 function openDetail(id){
   const b=books.find(x=>x.id===id);if(!b)return;selectedId=id;
-  $("detailTitle").textContent=b.title;$("detailAuthor").textContent=b.author;
+  $("detailTitle").textContent=b.title;$("detailAuthor").textContent=b.author;$("editBook").hidden=!isAdmin();
   const color=coverColours[(b.title.length+b.author.length)%coverColours.length];
   const cover=b.cover_url?`<img src="${esc(b.cover_url)}" alt="Cover of ${esc(b.title)}">`:`<div class="cover-placeholder" style="--cover:${color}"><span class="tiny">Travel Bookcase</span><strong>${esc(b.title)}</strong><em>${esc(b.author)}</em></div>`;
   const plats=(b.platforms||[]).map(p=>`<tr><td>${esc(p.platform||"—")}</td><td>${esc(p.format||"—")}</td><td>${esc(p.availability||"Not checked")}</td><td>${p.url?`<a href="${esc(p.url)}" target="_blank" rel="noopener">Open ↗</a>`:"—"}</td></tr>`).join("");
@@ -244,6 +275,7 @@ function openEdit(id){
   $("editDialog").showModal();
 }
 async function saveBook(b){
+  if(isConfigured() && !isAdmin()) throw new Error("Please sign in with the authorised Travel Bookcase account before editing.");
   if(!isConfigured()){if(editingId)books=books.map(x=>x.id===editingId?b:x);else books.push(b);return}
   const {platforms,...row}=b;
   const payload={...row,countries:b.countries,regions:b.regions,genres:b.genres};
@@ -266,7 +298,7 @@ $("bookForm").addEventListener("submit",async e=>{
   const b=normalizeBook({id:editingId||uuid(),title:$("fTitle").value,author:$("fAuthor").value,countries:splitList($("fCountries").value),regions:splitList($("fRegions").value),genres:splitList($("fGenres").value),reading_status:$("fStatus").value,format_preference:$("fFormat").value,cover_url:$("fCover").value,description:$("fDescription").value,why_read:$("fWhy").value,platforms,created_at:(books.find(x=>x.id===editingId)||{}).created_at});
   try{await saveBook(b);if(!isConfigured()){}else await loadBooks();if(!isConfigured())render();$("editDialog").close();if(selectedId){$("detailDialog").close();selectedId=null}}catch(err){console.error(err);$("formError").textContent="Save failed: "+err.message}
 });
-$("addBook").addEventListener("click",()=>openEdit());
+$("addBook").addEventListener("click",()=>{if(isAdmin())openEdit();else showSignIn()});
 $("editBook").addEventListener("click",()=>{const id=selectedId;$("detailDialog").close();openEdit(id)});
 document.querySelectorAll("[data-close]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.close).close()));
 ["search","countryFilter","regionFilter","genreFilter","statusFilter","sortBy"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
@@ -277,8 +309,9 @@ function exportJSON(){
   const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="travel-bookcase-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
 }
 $("exportBtn").addEventListener("click",exportJSON);
-$("importBtn").addEventListener("click",()=>$("importFile").click());
+$("importBtn").addEventListener("click",()=>{if(isAdmin())$("importFile").click();else showSignIn()});
 $("importFile").addEventListener("change",async e=>{
+  if(!isAdmin()){e.target.value="";showSignIn();return;}
   const file=e.target.files[0];if(!file)return;
   try{
     const raw=JSON.parse(await file.text());const incoming=Array.isArray(raw)?raw:raw.books;
@@ -292,6 +325,7 @@ $("importFile").addEventListener("change",async e=>{
   }catch(err){alert("Import failed: "+err.message)}finally{e.target.value=""}
 });
 $("confirmImport").addEventListener("click",async()=>{
+  if(!isAdmin()){alert("Sign in with the authorised account before importing.");return;}
   const mode=$("importMode").value;let added=0,updated=0,skipped=0;
   try{
     for(const incoming of pendingImport){
@@ -312,7 +346,45 @@ $("confirmImport").addEventListener("click",async()=>{
     $("importDialog").close();alert(`Import complete: ${added} added, ${updated} updated, ${skipped} skipped.`);
   }catch(err){console.error(err);alert("Import stopped: "+err.message+"\nSome earlier records may already have been saved. Export a backup before retrying.")}
 });
-loadBooks();
+function showSignIn(){
+  $("signInMessage").textContent="";
+  if(!$("signInDialog").open) $("signInDialog").showModal();
+}
+$("signInBtn").addEventListener("click",showSignIn);
+$("signOutBtn").addEventListener("click",async()=>{
+  if(!supabaseClient)return;
+  const {error}=await supabaseClient.auth.signOut();
+  if(error)alert("Sign out failed: "+error.message);
+});
+$("signInForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  if(!supabaseClient){$("signInMessage").textContent="Supabase is not configured yet.";return;}
+  const email=$("signInEmail").value.trim();
+  $("signInMessage").textContent="Sending magic link…";$("sendMagicLink").disabled=true;
+  try{
+    const {error}=await supabaseClient.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.href.split("#")[0].split("?")[0]}});
+    if(error)throw error;
+    $("signInMessage").textContent="Magic link sent. Open the email on this device/browser to finish signing in.";
+  }catch(err){$("signInMessage").textContent="Could not send link: "+err.message;}
+  finally{$("sendMagicLink").disabled=false;}
+});
+async function initAuth(){
+  if(!isConfigured() || !supabaseClient){updateAuthUI();await loadBooks();return;}
+  try{
+    const {data,error}=await supabaseClient.auth.getSession();if(error)throw error;
+    currentSession=data.session;currentUser=data.session?.user||null;
+  }catch(err){console.error("Auth session check failed",err);}
+  updateAuthUI();
+  supabaseClient.auth.onAuthStateChange((_event,session)=>{
+    currentSession=session;currentUser=session?.user||null;updateAuthUI();
+    // Refresh catalogue with the current session after login/logout.
+    setTimeout(()=>loadBooks(),0);
+    if(currentUser && $("signInDialog").open) $("signInDialog").close();
+  });
+  await loadBooks();
+}
+loadBooks = loadBooks; // keep named loader available to auth-state refreshes
+initAuth();
 </script>
 </body>
 </html>
