@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Travel Bookcase</title>
+<style>
+:root{--ink:#292d29;--muted:#687066;--paper:#f6f2e9;--card:#fffdf8;--green:#385344;--green2:#58745f;--wood:#79583f;--wood2:#4f3829;--line:#e3dccf;--gold:#c39b55;--shadow:0 8px 24px #2d2a2414}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 Georgia,"Times New Roman",serif}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+header{background:var(--green);color:#fffdf6;padding:26px clamp(18px,4vw,56px) 24px}
+.topline{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.eyebrow{text-transform:uppercase;letter-spacing:.18em;font:11px/1.4 system-ui,sans-serif;color:#d9cba8}
+h1{font-size:clamp(30px,4vw,48px);line-height:1.05;margin:8px 0 10px;font-weight:500;letter-spacing:-.03em}
+header p{margin:0;color:#e3e9df;max-width:660px}
+.header-mark{font-size:48px;opacity:.9}
+main{max-width:1400px;margin:auto;padding:24px clamp(14px,3vw,38px) 60px}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
+.toolbar input[type=search]{flex:1;min-width:210px}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--ink)}
+textarea{width:100%;min-height:84px;resize:vertical}
+.btn{border:1px solid var(--green);border-radius:8px;padding:10px 14px;background:var(--green);color:white;font:600 13px system-ui,sans-serif}
+.btn:hover{background:#2e4537}.btn.secondary{background:transparent;color:var(--green)}.btn.secondary:hover{background:#e9eee8}.btn.light{background:#fffdf8;border-color:var(--line);color:var(--ink)}
+.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:20px}
+.filters select{min-width:140px}
+.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--muted);font:13px system-ui,sans-serif;margin:8px 0 18px}
+.empty{padding:35px;text-align:center;background:#fffdf8;border:1px dashed var(--line);border-radius:12px;color:var(--muted)}
+.region{margin:0 0 32px}.region-title{display:flex;align-items:baseline;gap:12px;margin:0 0 12px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.region-title h2{font-size:23px;font-weight:500;margin:0}.region-title span{font:12px system-ui,sans-serif;color:var(--muted)}
+.shelf{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;padding:8px 12px 0;position:relative}
+.shelf:after{content:"";height:13px;background:linear-gradient(#987454,var(--wood) 35%,var(--wood2));border-radius:2px;box-shadow:0 5px 8px #36271924;display:block;flex-basis:100%;margin:0 -12px}
+.book{width:142px;min-width:116px;max-width:170px;flex:1 1 125px;cursor:pointer;position:relative;text-align:left}
+.cover{height:205px;width:100%;border-radius:3px 7px 7px 3px;overflow:hidden;position:relative;box-shadow:3px 4px 8px #2d241e28;background:#e6dccb;border-left:5px solid #0002;display:flex;align-items:center;justify-content:center}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover-placeholder{height:100%;width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:13px;color:#fffdf6;background:linear-gradient(150deg,var(--cover,#66765c),color-mix(in srgb,var(--cover,#66765c),#1e2c25 55%));}
+.cover-placeholder:before{content:"";position:absolute;inset:9px;border:1px solid #ffffff70;pointer-events:none}
+.cover-placeholder .tiny{font:9px system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;opacity:.8;margin-bottom:14px}
+.cover-placeholder strong{font-size:18px;line-height:1.12;font-weight:500}
+.cover-placeholder em{font:11px/1.4 Georgia,serif;margin-top:13px;opacity:.9}
+.status{position:absolute;top:7px;right:7px;background:#fffdf0e8;color:#364638;border-radius:20px;padding:4px 7px;font:10px system-ui,sans-serif;box-shadow:0 1px 5px #0002}
+.book-title{font-size:15px;line-height:1.25;margin:10px 0 3px;font-weight:bold}
+.book-author{font:12px system-ui,sans-serif;color:var(--muted)}
+.book-country{font:10px system-ui,sans-serif;color:var(--green2);margin-top:5px;text-transform:uppercase;letter-spacing:.06em}
+.book:hover .cover{transform:translateY(-3px);transition:transform .15s}
+dialog{border:0;border-radius:14px;padding:0;width:min(720px,calc(100% - 24px));max-height:90vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 20px 80px #0004}
+dialog::backdrop{background:#17221bd1}
+.modal-head{padding:20px 24px;background:#e9eee6;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.modal-head h2{margin:0;font-size:25px;font-weight:500}.modal-head p{margin:5px 0 0;color:var(--muted)}
+.close{border:0;background:transparent;font-size:25px;color:var(--muted)}
+.modal-body{padding:22px 24px}.detail-grid{display:grid;grid-template-columns:150px 1fr;gap:22px}.detail-cover{width:150px;height:220px;border-radius:4px;overflow:hidden;box-shadow:var(--shadow)}.detail-cover img{width:100%;height:100%;object-fit:cover}
+.detail-copy h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--green);font-family:system-ui,sans-serif;margin:0 0 5px}.detail-copy p{margin:0 0 15px}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 15px}.pill{font:11px system-ui,sans-serif;background:#e9eee6;color:#3e5947;padding:4px 8px;border-radius:30px}
+.platform-list{width:100%;border-collapse:collapse;font:13px system-ui,sans-serif}.platform-list td,.platform-list th{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}.platform-list th{color:var(--muted);font-weight:500}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;padding:16px 24px;border-top:1px solid var(--line)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field label{font:12px system-ui,sans-serif;color:var(--muted)}.field.full{grid-column:1/-1}.field small{color:var(--muted);font-size:11px}
+.import-preview{font:13px system-ui,sans-serif;background:#f1eee5;padding:12px;border-radius:8px;white-space:pre-wrap;max-height:170px;overflow:auto}
+footer{text-align:center;color:var(--muted);font:12px system-ui,sans-serif;padding:20px;border-top:1px solid var(--line)}
+@media(max-width:600px){.book{flex:0 1 calc(33.333% - 14px);min-width:88px}.cover{height:145px}.cover-placeholder strong{font-size:14px}.cover-placeholder em{font-size:9px}.detail-grid{grid-template-columns:100px 1fr;gap:14px}.detail-cover{width:100px;height:150px}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.modal-body{padding:16px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="topline">
+    <div><div class="eyebrow">A reading journey around the world</div><h1>The Travel Bookcase</h1><p>Stories to take you places — one country, one chapter, one adventure at a time.</p></div>
+    <div class="header-mark" aria-hidden="true">✦</div>
+  </div>
+</header>
+<main>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Search titles, authors, places…" aria-label="Search catalogue">
+    <button class="btn" id="addBook">＋ Add a book</button>
+    <button class="btn secondary" id="exportBtn">↓ Export JSON</button>
+    <button class="btn secondary" id="importBtn">↑ Import JSON</button>
+    <input id="importFile" type="file" accept=".json,application/json" hidden>
+  </div>
+  <div class="filters">
+    <select id="countryFilter" aria-label="Filter country"><option value="">All countries</option></select>
+    <select id="regionFilter" aria-label="Filter region"><option value="">All regions</option></select>
+    <select id="genreFilter" aria-label="Filter genre"><option value="">All genres</option></select>
+    <select id="statusFilter" aria-label="Filter reading status">
+      <option value="">All reading statuses</option><option>Want to read</option><option>Reading</option><option>Read</option><option>On hold</option>
+    </select>
+    <select id="sortBy" aria-label="Sort books"><option value="country">Country / region</option><option value="title">Title A–Z</option><option value="author">Author A–Z</option></select>
+  </div>
+  <div class="summary"><span id="count">Loading your shelves…</span><span id="connection"></span></div>
+  <div id="shelves"></div>
+</main>
+<footer>Made for curious readers and slow journeys. Catalogue data can be exported to JSON for backup or book recommendations.</footer>
+
+<dialog id="detailDialog">
+  <div class="modal-head"><div><h2 id="detailTitle"></h2><p id="detailAuthor"></p></div><button class="close" data-close="detailDialog" aria-label="Close">×</button></div>
+  <div class="modal-body" id="detailBody"></div>
+  <div class="modal-actions"><button class="btn secondary" id="editBook">Edit details</button><button class="btn" data-close="detailDialog">Close</button></div>
+</dialog>
+
+<dialog id="editDialog">
+  <div class="modal-head"><div><h2 id="editHeading">Add a book</h2><p>Fields with commas accept multiple values.</p></div><button class="close" data-close="editDialog" aria-label="Close">×</button></div>
+  <form id="bookForm">
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="field"><label for="fTitle">Title *</label><input id="fTitle" required></div>
+        <div class="field"><label for="fAuthor">Author *</label><input id="fAuthor" required></div>
+        <div class="field"><label for="fCountries">Countries (comma separated)</label><input id="fCountries" placeholder="Namibia, South Africa"></div>
+        <div class="field"><label for="fRegions">Regions (comma separated)</label><input id="fRegions" placeholder="Southern Africa"></div>
+        <div class="field"><label for="fGenres">Genres (comma separated)</label><input id="fGenres" placeholder="Literary fiction, historical"></div>
+        <div class="field"><label for="fStatus">Reading status</label><select id="fStatus"><option>Want to read</option><option>Reading</option><option>Read</option><option>On hold</option></select></div>
+        <div class="field"><label for="fFormat">Preferred format</label><select id="fFormat"><option value="">Not specified</option><option>Audiobook</option><option>Ebook</option><option>Physical book</option></select></div>
+        <div class="field"><label for="fCover">Cover image URL</label><input id="fCover" type="url" placeholder="https://…"></div>
+        <div class="field full"><label for="fDescription">Blurb / description</label><textarea id="fDescription"></textarea></div>
+        <div class="field full"><label for="fWhy">Why read it / travel connection</label><textarea id="fWhy"></textarea></div>
+        <div class="field full"><label for="fPlatforms">Platforms (JSON)</label><textarea id="fPlatforms" placeholder='[{"platform":"Audible","format":"Audiobook","availability":"Not checked","url":"","notes":""}]'></textarea><small>Optional. Use an array of objects with platform, format, availability, url and notes. Leave blank if unknown.</small></div>
+      </div>
+      <p id="formError" style="color:#9b332d"></p>
+    </div>
+    <div class="modal-actions"><button type="button" class="btn secondary" data-close="editDialog">Cancel</button><button type="submit" class="btn">Save book</button></div>
+  </form>
+</dialog>
+
+<dialog id="importDialog">
+  <div class="modal-head"><div><h2>Import catalogue</h2><p>Preview changes before they reach your shelves.</p></div><button class="close" data-close="importDialog" aria-label="Close">×</button></div>
+  <div class="modal-body">
+    <p id="importSummary"></p>
+    <div class="field"><label for="importMode">How should matching books be handled?</label><select id="importMode"><option value="merge">Merge updates into matching books (match by ID, then title + author)</option><option value="new">Add new books only; leave existing books unchanged</option><option value="replace">Replace matching book details</option></select></div>
+    <p class="import-preview" id="importPreview"></p>
+    <p><small>Tip: export a backup first. Existing IDs are preserved where possible; platform records are included in the JSON.</small></p>
+  </div>
+  <div class="modal-actions"><button class="btn secondary" data-close="importDialog">Cancel</button><button class="btn" id="confirmImport">Import books</button></div>
+</dialog>
+
+<script>
+/*
+  SETUP:
+  1. Run supabase_setup.sql in your Supabase SQL Editor.
+  2. Paste your Project URL and anon/publishable key below.
+  3. Host this file (e.g. Supabase Storage, Netlify, GitHub Pages).
+  Never put a service_role/secret key in browser code.
+*/
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_PROJECT_URL_HERE";
+const SUPABASE_ANON_KEY = "PASTE_YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY_HERE";
+const TABLE = "travel_books";
+const PLATFORM_TABLE = "travel_book_platforms";
+
+const sampleBooks = [
+  {id:"sample-1",title:"The Shadow of the Wind",author:"Carlos Ruiz Zafón",countries:["Spain"],regions:["Southern Europe"],genres:["Literary fiction","Mystery","Historical fiction"],description:"A young boy discovers a mysterious novel in a hidden library in post-war Barcelona, setting him on a journey into the life of its elusive author.",why_read:"A richly atmospheric story in which Barcelona is almost a character of its own.",reading_status:"Want to read",format_preference:"Audiobook",cover_url:"",platforms:[]},
+  {id:"sample-2",title:"The Old Drift",author:"Namwali Serpell",countries:["Zambia"],regions:["Southern Africa"],genres:["Literary fiction","Historical fiction"],description:"A sweeping, multigenerational novel tracing the lives of three families in Zambia across more than a century.",why_read:"A vivid way into Zambian history and society.",reading_status:"Want to read",format_preference:"Audiobook",cover_url:"",platforms:[]},
+  {id:"sample-3",title:"The Brief Wondrous Life of Oscar Wao",author:"Junot Díaz",countries:["Dominican Republic","United States"],regions:["Caribbean","North America"],genres:["Literary fiction","Historical fiction"],description:"A funny, tragic, genre-bending story of a Dominican-American family and the history that shadows them.",why_read:"A distinctive voice for exploring Dominican history and diaspora.",reading_status:"Want to read",format_preference:"Audiobook",cover_url:"",platforms:[]}
+];
+let books = [];
+let editingId = null, selectedId = null, pendingImport = [];
+
+const $ = id => document.getElementById(id);
+const splitList = value => value.split(",").map(x=>x.trim()).filter(Boolean);
+const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = value => String(value||"").trim().toLowerCase();
+const isConfigured = () => SUPABASE_URL.startsWith("https://") && !SUPABASE_URL.includes("PASTE_") && SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes("PASTE_");
+
+function uuid(){return crypto.randomUUID ? crypto.randomUUID() : "book-"+Date.now()+"-"+Math.random().toString(16).slice(2)}
+function normalizeBook(b){
+  return {
+    id:b.id || uuid(), title:String(b.title||"").trim(), author:String(b.author||"").trim(),
+    description:b.description||b.blurb||"", why_read:b.why_read||b.whyRead||"",
+    countries:Array.isArray(b.countries)?b.countries:splitList(String(b.countries||"")),
+    regions:Array.isArray(b.regions)?b.regions:splitList(String(b.regions||"")),
+    genres:Array.isArray(b.genres)?b.genres:splitList(String(b.genres||"")),
+    cover_url:b.cover_url||b.coverUrl||"", reading_status:b.reading_status||b.status||"Want to read",
+    format_preference:b.format_preference||b.formatPreference||"",
+    platforms:Array.isArray(b.platforms)?b.platforms:[],
+    created_at:b.created_at||new Date().toISOString()
+  };
+}
+async function api(path, options={}){
+  const res = await fetch(SUPABASE_URL + "/rest/v1/" + path, { ...options, headers:{
+    apikey:SUPABASE_ANON_KEY, Authorization:"Bearer "+SUPABASE_ANON_KEY,
+    "Content-Type":"application/json", Prefer:"return=representation", ...(options.headers||{})
+  }});
+  if(!res.ok) throw new Error(await res.text());
+  if(res.status===204) return [];
+  const text=await res.text(); return text ? JSON.parse(text) : [];
+}
+async function loadBooks(){
+  if(!isConfigured()){books=sampleBooks.map(normalizeBook);$("connection").textContent="Sample catalogue · connect Supabase to publish";render();return}
+  try{
+    const rows=await api(`${TABLE}?select=*&order=title.asc`);
+    const ids=rows.map(r=>r.id);
+    let platforms=[];
+    if(ids.length){
+      const p=await api(`${PLATFORM_TABLE}?select=*&book_id=in.(${ids.join(",")})`);
+      platforms=p;
+    }
+    books=rows.map(r=>normalizeBook({...r,platforms:platforms.filter(p=>p.book_id===r.id)}));
+    $("connection").textContent="Connected to Supabase";
+  }catch(e){
+    console.error(e);books=sampleBooks.map(normalizeBook);$("connection").textContent="Could not load Supabase · showing samples";
+    alert("Couldn't load the Supabase catalogue. Check the project URL, anon key, SQL setup and browser console. Sample books are shown for now.");
+  }
+  render();
+}
+function allValues(field){return [...new Set(books.flatMap(b=>b[field]||[]))].sort((a,b)=>a.localeCompare(b))}
+function refillSelect(id, values, first){const s=$(id), old=s.value;s.innerHTML=`<option value="">${first}</option>`+values.map(v=>`<option>${esc(v)}</option>`).join("");if(values.includes(old))s.value=old}
+function render(){
+  refillSelect("countryFilter",allValues("countries"),"All countries");
+  refillSelect("regionFilter",allValues("regions"),"All regions");
+  refillSelect("genreFilter",allValues("genres"),"All genres");
+  const q=norm($("search").value), country=$("countryFilter").value, region=$("regionFilter").value, genre=$("genreFilter").value,status=$("statusFilter").value,sort=$("sortBy").value;
+  let shown=books.filter(b=>
+    (!q||[b.title,b.author,b.description,b.why_read,...b.countries,...b.regions,...b.genres].some(x=>norm(x).includes(q))) &&
+    (!country||b.countries.includes(country))&&(!region||b.regions.includes(region))&&(!genre||b.genres.includes(genre))&&(!status||b.reading_status===status));
+  const compare=(a,b,key)=>String(a[key]||"").localeCompare(String(b[key]||""));
+  if(sort==="title")shown.sort((a,b)=>compare(a,b,"title"));
+  else if(sort==="author")shown.sort((a,b)=>compare(a,b,"author")||compare(a,b,"title"));
+  else shown.sort((a,b)=>((a.regions[0]||a.countries[0]||"Other").localeCompare(b.regions[0]||b.countries[0]||"Other"))||compare(a,b,"title"));
+  $("count").textContent=`${shown.length} book${shown.length===1?"":"s"} · ${books.filter(b=>b.reading_status==="Read").length} read`;
+  const container=$("shelves");
+  if(!shown.length){container.innerHTML='<div class="empty">No books match those filters. Try another search, or add a book to the shelves.</div>';return}
+  const groups={};
+  shown.forEach(b=>{
+    let key=sort==="country"?(b.regions[0]||b.countries[0]||"Other places"):"Your collection";
+    if(!groups[key])groups[key]=[];groups[key].push(b);
+  });
+  container.innerHTML=Object.entries(groups).map(([name,list])=>`<section class="region"><div class="region-title"><h2>${esc(name)}</h2><span>${list.length} title${list.length===1?"":"s"}</span></div><div class="shelf">${list.map(bookCard).join("")}</div></section>`).join("");
+  container.querySelectorAll("[data-book]").forEach(el=>el.addEventListener("click",()=>openDetail(el.dataset.book)));
+}
+const coverColours=["#526b5a","#9b624b","#6a7188","#8c784d","#6d7f8a","#765c71","#9a7b57"];
+function bookCard(b){
+  const color=coverColours[(b.title.length+b.author.length)%coverColours.length];
+  const cover=b.cover_url?`<img loading="lazy" src="${esc(b.cover_url)}" alt="Cover of ${esc(b.title)}" onerror="this.parentElement.innerHTML='<div class=&quot;cover-placeholder&quot; style=&quot;--cover:${color}&quot;><span class=&quot;tiny&quot;>Travel Bookcase</span><strong>${esc(b.title)}</strong><em>${esc(b.author)}</em></div>'">`:`<div class="cover-placeholder" style="--cover:${color}"><span class="tiny">Travel Bookcase</span><strong>${esc(b.title)}</strong><em>${esc(b.author)}</em></div>`;
+  return `<article class="book" data-book="${esc(b.id)}"><div class="cover">${cover}<span class="status">${esc(b.reading_status||"Want to read")}</span></div><div class="book-title">${esc(b.title)}</div><div class="book-author">${esc(b.author)}</div><div class="book-country">${esc(b.countries.join(" · ")||b.regions.join(" · ")||"Unplaced")}</div></article>`;
+}
+function openDetail(id){
+  const b=books.find(x=>x.id===id);if(!b)return;selectedId=id;
+  $("detailTitle").textContent=b.title;$("detailAuthor").textContent=b.author;
+  const color=coverColours[(b.title.length+b.author.length)%coverColours.length];
+  const cover=b.cover_url?`<img src="${esc(b.cover_url)}" alt="Cover of ${esc(b.title)}">`:`<div class="cover-placeholder" style="--cover:${color}"><span class="tiny">Travel Bookcase</span><strong>${esc(b.title)}</strong><em>${esc(b.author)}</em></div>`;
+  const plats=(b.platforms||[]).map(p=>`<tr><td>${esc(p.platform||"—")}</td><td>${esc(p.format||"—")}</td><td>${esc(p.availability||"Not checked")}</td><td>${p.url?`<a href="${esc(p.url)}" target="_blank" rel="noopener">Open ↗</a>`:"—"}</td></tr>`).join("");
+  $("detailBody").innerHTML=`<div class="detail-grid"><div class="detail-cover">${cover}</div><div class="detail-copy"><h3>Reading status</h3><p>${esc(b.reading_status)}</p><h3>Places</h3><p>${esc([...b.countries,...b.regions].join(" · ")||"Not specified")}</p><h3>Genres</h3><div class="pills">${(b.genres.length?b.genres:["Not specified"]).map(g=>`<span class="pill">${esc(g)}</span>`).join("")}</div><h3>About the book</h3><p>${esc(b.description||"No description added yet.")}</p><h3>Why this book?</h3><p>${esc(b.why_read||"No travel note added yet.")}</p><h3>Preferred format</h3><p>${esc(b.format_preference||"Not specified")}</p></div></div><h3 style="font:12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em;color:var(--green);margin:24px 0 6px">Platforms & editions</h3>${plats?`<table class="platform-list"><thead><tr><th>Platform</th><th>Format</th><th>Availability</th><th>Link</th></tr></thead><tbody>${plats}</tbody></table>`:"<p>No platform details yet.</p>"}`;
+  $("detailDialog").showModal();
+}
+function openEdit(id){
+  editingId=id||null;const b=id?books.find(x=>x.id===id):normalizeBook({});
+  $("editHeading").textContent=id?"Edit book":"Add a book";$("formError").textContent="";
+  $("fTitle").value=b.title||"";$("fAuthor").value=b.author||"";$("fCountries").value=(b.countries||[]).join(", ");$("fRegions").value=(b.regions||[]).join(", ");$("fGenres").value=(b.genres||[]).join(", ");
+  $("fStatus").value=b.reading_status||"Want to read";$("fFormat").value=b.format_preference||"";$("fCover").value=b.cover_url||"";$("fDescription").value=b.description||"";$("fWhy").value=b.why_read||"";
+  $("fPlatforms").value=(b.platforms||[]).length?JSON.stringify(b.platforms.map(p=>({platform:p.platform,format:p.format,availability:p.availability,url:p.url,notes:p.notes})),null,2):"";
+  $("editDialog").showModal();
+}
+async function saveBook(b){
+  if(!isConfigured()){if(editingId)books=books.map(x=>x.id===editingId?b:x);else books.push(b);return}
+  const {platforms,...row}=b;
+  const payload={...row,countries:b.countries,regions:b.regions,genres:b.genres};
+  let saved;
+  if(editingId){
+    const result=await api(`${TABLE}?id=eq.${encodeURIComponent(editingId)}`,{method:"PATCH",body:JSON.stringify(payload)});
+    saved=result[0]||payload;
+    await api(`${PLATFORM_TABLE}?book_id=eq.${encodeURIComponent(editingId)}`,{method:"DELETE",headers:{Prefer:"return=minimal"}});
+  }else{
+    const result=await api(TABLE,{method:"POST",body:JSON.stringify(payload)});saved=result[0]||payload;
+  }
+  if(platforms.length){
+    const records=platforms.map(p=>({book_id:saved.id,platform:p.platform||"",format:p.format||"",availability:p.availability||"Not checked",url:p.url||"",notes:p.notes||""}));
+    await api(PLATFORM_TABLE,{method:"POST",body:JSON.stringify(records)});
+  }
+}
+$("bookForm").addEventListener("submit",async e=>{
+  e.preventDefault();$("formError").textContent="";
+  let platforms=[];try{platforms=$("fPlatforms").value.trim()?JSON.parse($("fPlatforms").value):[];if(!Array.isArray(platforms))throw new Error("Platforms must be a JSON array.");}catch(err){$("formError").textContent="Platforms JSON: "+err.message;return}
+  const b=normalizeBook({id:editingId||uuid(),title:$("fTitle").value,author:$("fAuthor").value,countries:splitList($("fCountries").value),regions:splitList($("fRegions").value),genres:splitList($("fGenres").value),reading_status:$("fStatus").value,format_preference:$("fFormat").value,cover_url:$("fCover").value,description:$("fDescription").value,why_read:$("fWhy").value,platforms,created_at:(books.find(x=>x.id===editingId)||{}).created_at});
+  try{await saveBook(b);if(!isConfigured()){}else await loadBooks();if(!isConfigured())render();$("editDialog").close();if(selectedId){$("detailDialog").close();selectedId=null}}catch(err){console.error(err);$("formError").textContent="Save failed: "+err.message}
+});
+$("addBook").addEventListener("click",()=>openEdit());
+$("editBook").addEventListener("click",()=>{const id=selectedId;$("detailDialog").close();openEdit(id)});
+document.querySelectorAll("[data-close]").forEach(btn=>btn.addEventListener("click",()=>$(btn.dataset.close).close()));
+["search","countryFilter","regionFilter","genreFilter","statusFilter","sortBy"].forEach(id=>$(id).addEventListener(id==="search"?"input":"change",render));
+
+function exportJSON(){
+  const payload={schema_version:1,exported_at:new Date().toISOString(),source:"The Travel Bookcase",books:books.map(b=>({...b,platforms:(b.platforms||[]).map(p=>({platform:p.platform,format:p.format,availability:p.availability,url:p.url,notes:p.notes}))}))};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="travel-bookcase-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url);
+}
+$("exportBtn").addEventListener("click",exportJSON);
+$("importBtn").addEventListener("click",()=>$("importFile").click());
+$("importFile").addEventListener("change",async e=>{
+  const file=e.target.files[0];if(!file)return;
+  try{
+    const raw=JSON.parse(await file.text());const incoming=Array.isArray(raw)?raw:raw.books;
+    if(!Array.isArray(incoming))throw new Error("Expected a JSON array or an object with a 'books' array.");
+    pendingImport=incoming.map(normalizeBook).filter(b=>b.title&&b.author);
+    if(!pendingImport.length)throw new Error("No valid books found. Each book needs a title and author.");
+    const newCount=pendingImport.filter(b=>!books.some(x=>x.id===b.id|| (norm(x.title)===norm(b.title)&&norm(x.author)===norm(b.author)))).length;
+    $("importSummary").textContent=`Found ${pendingImport.length} valid books. ${newCount} appear to be new; ${pendingImport.length-newCount} match an existing book by ID or title + author.`;
+    $("importPreview").textContent=pendingImport.slice(0,12).map(b=>`${books.some(x=>x.id===b.id||(norm(x.title)===norm(b.title)&&norm(x.author)===norm(b.author)))?"MATCH":"NEW"} · ${b.title} — ${b.author} [${b.countries.join(", ")||"No country"}]`).join("\n")+(pendingImport.length>12?`\n… plus ${pendingImport.length-12} more`:"");
+    $("importDialog").showModal();
+  }catch(err){alert("Import failed: "+err.message)}finally{e.target.value=""}
+});
+$("confirmImport").addEventListener("click",async()=>{
+  const mode=$("importMode").value;let added=0,updated=0,skipped=0;
+  try{
+    for(const incoming of pendingImport){
+      const match=books.find(x=>x.id===incoming.id)||(books.find(x=>norm(x.title)===norm(incoming.title)&&norm(x.author)===norm(incoming.author)));
+      if(match&&mode==="new"){skipped++;continue}
+      const finalBook=match?{...incoming,id:match.id,created_at:match.created_at||incoming.created_at}:incoming;
+      if(match&&mode==="merge"){
+        // Incoming non-empty fields update the record; retain local reading status if incoming status is absent.
+        for(const k of ["title","author","description","why_read","cover_url","reading_status","format_preference"])if(!incoming[k]&&match[k])finalBook[k]=match[k];
+        for(const k of ["countries","regions","genres"])if(!incoming[k]?.length&&match[k]?.length)finalBook[k]=match[k];
+        if(!incoming.platforms?.length&&match.platforms?.length)finalBook.platforms=match.platforms;
+      }
+      await saveBook(finalBook);if(match)updated++;else added++;
+      // Keep local list fresh for matching subsequent rows in the same import.
+      const idx=books.findIndex(x=>x.id===finalBook.id);if(idx>=0)books[idx]=finalBook;else books.push(finalBook);
+    }
+    if(isConfigured())await loadBooks();else render();
+    $("importDialog").close();alert(`Import complete: ${added} added, ${updated} updated, ${skipped} skipped.`);
+  }catch(err){console.error(err);alert("Import stopped: "+err.message+"\nSome earlier records may already have been saved. Export a backup before retrying.")}
+});
+loadBooks();
+</script>
+</body>
+</html>
